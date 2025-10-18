@@ -31,49 +31,31 @@ public class DogApiBreedFetcher implements BreedFetcher {
 
         try (Response response = client.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                if (response.code() == 404) {
-                    throw new BreedNotFoundException(breed);
-                } else {
-                    throw new IOException("Unexpected HTTP response: " + response.code());
-                }
+                throw new BreedNotFoundException("Breed not found: " + breed);
             }
 
             String body = response.body().string();
             JSONObject json = new JSONObject(body);
 
             String status = json.optString("status", "error");
-            if (status.equalsIgnoreCase("error")) {
-                throw new BreedNotFoundException(breed);
+            if (!status.equalsIgnoreCase("success")) {
+                throw new BreedNotFoundException("Breed not found: " + breed);
             }
 
-            Object message = json.get("message");
+            JSONArray arr = json.optJSONArray("message");
             List<String> subBreeds = new ArrayList<>();
 
-            if (message instanceof JSONArray) {
-                JSONArray arr = (JSONArray) message;
+            if (arr != null) {
                 for (int i = 0; i < arr.length(); i++) {
                     subBreeds.add(arr.getString(i));
                 }
-            } else if (message instanceof JSONObject) {
-                JSONObject msgObj = (JSONObject) message;
-                if (!msgObj.has(breed.toLowerCase())) {
-                    throw new BreedNotFoundException(breed);
-                }
-                JSONArray arr = msgObj.getJSONArray(breed.toLowerCase());
-                for (int i = 0; i < arr.length(); i++) {
-                    subBreeds.add(arr.getString(i));
-                }
-            } else {
-                throw new IOException("Unexpected JSON structure for message field");
             }
             Collections.sort(subBreeds);
             return subBreeds;
-        } catch (BreedNotFoundException e) {
-            throw e;
         } catch (IOException e) {
-            throw new RuntimeException("Network or I/O error: " + e.getMessage(), e);
+            throw new BreedNotFoundException("Breed not found: " + breed);
         } catch (Exception e) {
-            throw new RuntimeException("Unexpected error parsing dog API response", e);
+            throw new BreedNotFoundException("Breed not found: " + breed);
         }
     }
 }
