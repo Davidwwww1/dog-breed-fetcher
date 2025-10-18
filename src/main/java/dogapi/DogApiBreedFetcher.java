@@ -27,36 +27,34 @@ public class DogApiBreedFetcher implements BreedFetcher {
     @Override
     public List<String> getSubBreeds(String breed) throws BreedNotFoundException {
         String url = "https://dog.ceo/api/breed/" + breed.toLowerCase() + "/list";
-        try {
-            java.net.URL u = new java.net.URL(url);
-            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) u.openConnection();
-            conn.setRequestMethod("GET");
-            if (conn.getResponseCode() == 404) {
+
+        Request request = new Request.Builder()
+                .url(url)
+                .build();
+
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                if (response.code() == 404) {
+                    throw new BreedNotFoundException(breed);
+                } else {
+                    throw new IOException("Unexpected HTTP code: " + response.code());
+                }
+            }
+
+            String body = response.body().string();
+            JSONObject json = new JSONObject(body);
+            if (!json.getString("status").equals("success")) {
                 throw new BreedNotFoundException(breed);
             }
 
-            java.io.InputStreamReader reader = new java.io.InputStreamReader(conn.getInputStream());
-            StringBuilder sb = new StringBuilder();
-            int c;
-            while ((c = reader.read()) != -1) sb.append((char) c);
-            reader.close();
-            String result = sb.toString();
-
-            if (result.contains("\"status\":\"error\"")) {
-                throw new BreedNotFoundException(breed);
+            JSONArray array = json.getJSONArray("message");
+            List<String> subBreeds = new ArrayList<>();
+            for (int i = 0; i < array.length(); i++) {
+                subBreeds.add(array.getString(i));
             }
-
-            int start = result.indexOf('[');
-            int end = result.indexOf(']');
-            if (start == -1 || end == -1) return List.of();
-            String inside = result.substring(start + 1, end).replace("\"", "");
-            if (inside.isBlank()) return List.of();
-            return List.of(inside.split(","));
-        } catch (java.io.IOException e) {
-            if (e.getMessage() != null && e.getMessage().contains("Server returned HTTP response code: 404")) {
-                throw new BreedNotFoundException(breed);
-            }
-            throw new RuntimeException("Network error", e);
+            return subBreeds;
+        } catch (IOException e) {
+            throw new BreedNotFoundException(breed);
         }
     }
 }
