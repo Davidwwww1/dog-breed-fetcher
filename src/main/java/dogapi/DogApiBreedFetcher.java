@@ -33,25 +33,47 @@ public class DogApiBreedFetcher implements BreedFetcher {
             if (!response.isSuccessful()) {
                 if (response.code() == 404) {
                     throw new BreedNotFoundException(breed);
+                } else {
+                    throw new IOException("Unexpected HTTP response: " + response.code());
                 }
-                return List.of();
             }
 
             String body = response.body().string();
             JSONObject json = new JSONObject(body);
 
-            if (!json.optString("status", "error").equals("success")) {
+            String status = json.optString("status", "error");
+            if (status.equalsIgnoreCase("error")) {
                 throw new BreedNotFoundException(breed);
             }
 
-            JSONArray array = json.getJSONArray("message");
+            Object message = json.get("message");
             List<String> subBreeds = new ArrayList<>();
-            for (int i = 0; i < array.length(); i++) {
-                subBreeds.add(array.getString(i));
+
+            if (message instanceof JSONArray) {
+                JSONArray arr = (JSONArray) message;
+                for (int i = 0; i < arr.length(); i++) {
+                    subBreeds.add(arr.getString(i));
+                }
+            } else if (message instanceof JSONObject) {
+                JSONObject msgObj = (JSONObject) message;
+                if (!msgObj.has(breed.toLowerCase())) {
+                    throw new BreedNotFoundException(breed);
+                }
+                JSONArray arr = msgObj.getJSONArray(breed.toLowerCase());
+                for (int i = 0; i < arr.length(); i++) {
+                    subBreeds.add(arr.getString(i));
+                }
+            } else {
+                throw new IOException("Unexpected JSON structure for message field");
             }
+            Collections.sort(subBreeds);
             return subBreeds;
+        } catch (BreedNotFoundException e) {
+            throw e;
         } catch (IOException e) {
-            return List.of();
+            throw new RuntimeException("Network or I/O error: " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new RuntimeException("Unexpected error parsing dog API response", e);
         }
     }
 }
