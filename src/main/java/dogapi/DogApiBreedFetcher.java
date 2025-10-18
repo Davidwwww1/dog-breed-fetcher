@@ -31,18 +31,19 @@ public class DogApiBreedFetcher implements BreedFetcher {
 
         try (Response response = client.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                throw new BreedNotFoundException("Breed not found: " + breed);
+                throw new BreedNotFoundException(breed);
             }
 
             String body = response.body().string();
             JSONObject json = new JSONObject(body);
 
             if (!"success".equalsIgnoreCase(json.optString("status", ""))) {
-                throw new BreedNotFoundException("Breed not found: " + breed);
+                throw new BreedNotFoundException(breed);
             }
+
             JSONArray message = json.optJSONArray("message");
             if (message == null) {
-                throw new BreedNotFoundException("Breed not found: " + breed);
+                throw new BreedNotFoundException(breed);
             }
 
             List<String> subBreeds = new ArrayList<>();
@@ -52,12 +53,13 @@ public class DogApiBreedFetcher implements BreedFetcher {
 
             Collections.sort(subBreeds);
             return subBreeds;
+
         } catch (BreedNotFoundException e) {
             throw e;
         } catch (IOException e) {
-            throw new BreedNotFoundException("Breed not found: " + breed);
+            throw new BreedNotFoundException(breed);
         } catch (Exception e) {
-            throw new BreedNotFoundException("Breed not found: " + breed);
+            throw new BreedNotFoundException(breed);
         }
     }
 }
